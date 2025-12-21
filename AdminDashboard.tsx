@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CATEGORIES } from './constants';
 import { Product, CategoryId } from './types';
 import { useAppData } from './AppDataContext';
+import { useAuth } from './AuthContext';
 import { INITIAL_PRODUCTS } from './seedData';
 
 // Simple types for form state (partial product)
@@ -10,8 +11,18 @@ type ProductForm = Omit<Product, 'id' | 'isNew' | 'isPopular'>;
 
 const AdminDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const { user, loading: authLoading } = useAuth();
     const { products, addProduct, updateProduct, deleteProduct, refreshProducts } = useAppData();
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!authLoading && !user) {
+            navigate('/login');
+        }
+    }, [user, authLoading, navigate]);
+
+    if (authLoading) return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
+    if (!user) return null; // Prevent flash
 
     // Edit Mode State
     const [editingId, setEditingId] = useState<string | null>(null);

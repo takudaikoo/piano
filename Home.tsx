@@ -2,6 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { CATEGORIES, REVIEWS } from './constants';
 import { Product, CategoryId } from './types';
 import { useAppData } from './AppDataContext';
+import { useCart } from './CartContext';
+import { useAuth } from './AuthContext';
+import CartDrawer from './CartDrawer';
 import { Link } from 'react-router-dom';
 
 // --- Icons ---
@@ -15,19 +18,44 @@ const Icons = {
 
 // --- Components ---
 
-const Header = () => (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-stone-100 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-            <h1 className="text-lg font-bold text-brand-900 tracking-tight">
-                〇〇式幼児指導法<span className="text-brand-500 ml-1">公式教材</span>
-            </h1>
-            <button className="p-2 hover:bg-stone-100 rounded-full relative">
-                <Icons.ShoppingCart />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-        </div>
-    </header>
-);
+const Header = () => {
+    const { totalItems, toggleCart } = useCart();
+    const { user, signOut } = useAuth();
+    return (
+        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-stone-100 shadow-sm">
+            <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+                <h1 className="text-lg font-bold text-brand-900 tracking-tight">
+                    〇〇式幼児指導法<span className="text-brand-500 ml-1">公式教材</span>
+                </h1>
+                <div className="flex items-center gap-3">
+                    {user ? (
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] text-stone-400 hidden sm:inline">{user.email}</span>
+                            <button onClick={signOut} className="text-xs font-bold text-stone-500 hover:text-brand-600">
+                                ログアウト
+                            </button>
+                        </div>
+                    ) : (
+                        <Link to="/login" className="text-xs font-bold text-stone-500 hover:text-brand-600">
+                            ログイン
+                        </Link>
+                    )}
+                    <button
+                        onClick={toggleCart}
+                        className="p-2 hover:bg-stone-100 rounded-full relative"
+                    >
+                        <Icons.ShoppingCart />
+                        {totalItems > 0 && (
+                            <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full">
+                                {totalItems}
+                            </span>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </header>
+    );
+};
 
 const CategoryFilter = ({ activeCategory, onSelect }: { activeCategory: CategoryId, onSelect: (id: CategoryId) => void }) => (
     <div className="py-6 px-4 overflow-x-auto no-scrollbar">
@@ -257,6 +285,7 @@ const ProductDetail = ({ product, onBack, onAddToCart, onProductClick }: { produ
 
 const Home = () => {
     const { products, isLoading, error } = useAppData();
+    const { addToCart } = useCart();
     const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -279,12 +308,15 @@ const Home = () => {
     // View: Product Detail
     if (selectedProduct) {
         return (
-            <ProductDetail
-                product={selectedProduct}
-                onBack={handleBack}
-                onAddToCart={() => alert('カート機能は準備中です')}
-                onProductClick={handleProductClick}
-            />
+            <>
+                <ProductDetail
+                    product={selectedProduct}
+                    onBack={handleBack}
+                    onAddToCart={() => addToCart(selectedProduct)}
+                    onProductClick={handleProductClick}
+                />
+                <CartDrawer />
+            </>
         );
     }
 
@@ -393,10 +425,8 @@ const Home = () => {
 
             <footer className="bg-stone-800 text-stone-400 py-8 text-center text-xs">
                 <p>&copy; 2024 〇〇式幼児指導法 All Rights Reserved.</p>
-                <Link to="/admin" className="mt-4 inline-block text-stone-300 hover:text-white underline font-bold px-4 py-2 border border-stone-600 rounded">
-                    管理者ログイン
-                </Link>
             </footer>
+            <CartDrawer />
         </div>
     );
 };
