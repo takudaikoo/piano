@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from './supabaseClient';
-import { Product } from './types';
+import { Product, Notification } from './types';
 import { PRODUCTS as INITIAL_PRODUCTS } from './constants'; // Fallback / Seed source
 
 interface AppDataContextType {
     products: Product[];
+    notifications: Notification[];
     isLoading: boolean;
     error: string | null;
     refreshProducts: () => Promise<void>;
+    refreshNotifications: () => Promise<void>;
     addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
     updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
+    addNotification: (notification: Omit<Notification, 'id' | 'created_at'>) => Promise<void>;
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
@@ -28,10 +31,27 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+
+    const fetchNotifications = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            if (data) setNotifications(data as Notification[]);
+        } catch (err: any) {
+            console.error('Error fetching notifications:', err);
+        }
+    };
+
     const fetchProducts = async () => {
         setIsLoading(true);
         setError(null);
         try {
+            await fetchNotifications(); // Fetch notifications too
             const { data, error } = await supabase
                 .from('products')
                 .select('*')
@@ -40,11 +60,6 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
             if (error) throw error;
 
             if (data) {
-                // Map snake_case DB fields to camelCase JS fields if necessary
-                // Our table uses snake_case column names but we defined camelCase in types?
-                // Wait, my SQL used snake_case for multi-word columns like catch_copy.
-                // I need to handle mapping if Supabase doesn't automatically do it (it doesn't).
-
                 const mappedData: Product[] = data.map((item: any) => ({
                     id: item.id,
                     title: item.title,
@@ -66,16 +81,23 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (err: any) {
             console.error('Error fetching products:', err);
             setError(err.message);
-            // Fallback to constants if DB is empty or fails? 
-            // Maybe not automatically, let's just show error or empty.
         } finally {
             setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchProducts();
-    }, []);
+    const addNotification = async (notification: Omit<Notification, 'id' | 'created_at'>) => {
+        try {
+            const { error } = await supabase.from('notifications').insert([notification]);
+            if (error) throw error;
+            await fetchNotifications();
+        } catch (err: any) {
+            console.error('Error adding notification:', err);
+            throw err;
+        }
+    };
+
+    // ... existing addProduct, updateProduct, deleteProduct ...
 
     const addProduct = async (product: Omit<Product, 'id'>) => {
         try {
@@ -146,12 +168,15 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
     return (
         <AppDataContext.Provider value={{
             products,
+            notifications,
             isLoading,
             error,
             refreshProducts: fetchProducts,
+            refreshNotifications: fetchNotifications,
             addProduct,
             updateProduct,
-            deleteProduct
+            deleteProduct,
+            addNotification
         }}>
             {children}
         </AppDataContext.Provider>

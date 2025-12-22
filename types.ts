@@ -33,3 +33,18 @@ export interface Review {
   content: string;
   role: string;
 }
+
+export interface Notification {
+  id: string;
+  title: string;
+  content: string;
+  type: 'info' | 'alert' | 'new_arrival';
+  created_at: string;
+}
+
+export interface UserSettings {
+  user_id: string;
+  email_notification: boolean;
+  app_notification: boolean;
+  updated_at?: string;
+}

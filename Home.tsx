@@ -43,7 +43,9 @@ const Header = ({ cartIconRef }: { cartIconRef: React.RefObject<HTMLButtonElemen
                 <div className="flex items-center gap-3">
                     {user ? (
                         <div className="flex items-center gap-3">
-                            <span className="text-[10px] text-stone-400 hidden sm:inline">{user.email}</span>
+                            <Link to="/mypage" className="text-[10px] text-stone-400 hidden sm:inline hover:text-brand-600 hover:underline">
+                                {user.email} (マイページ)
+                            </Link>
                             <button onClick={signOut} className="text-xs font-bold text-stone-500 hover:text-brand-600">
                                 ログアウト
                             </button>

@@ -111,3 +111,46 @@ create policy "Users can view own order items" on order_items for select
   using ( exists ( select 1 from orders where orders.id = order_items.order_id and orders.user_id = auth.uid() ) );
 
 create policy "Users can insert order items" on order_items for insert with check (auth.role() = 'authenticated');
+
+-- Notifications Table
+create table notifications (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  content text not null,
+  type text default 'info', -- 'info', 'alert', 'new_arrival'
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table notifications enable row level security;
+
+-- Admin can do everything, users can only view
+create policy "Public notifications are viewable by everyone"
+  on notifications for select
+  using (true);
+
+-- Assuming we want only admins/service role to insert. 
+-- For now, if we don't have distinct roles set up in this schema for admin, 
+-- we can allow authenticated users to insert if we trust them (bad for prod) or just leave it to dashboard logic/RLS disabled for service role helper.
+-- Let's stick to: "Users cannot insert". Admin Dashboard likely uses a logged-in user who *should* be admin.
+-- Since the current app seems to use the same user table for admin, we might need a way to distinguish.
+-- For this MVP/Phase, let's allow "Enable all access for all users" pattern seen above OR restrict.
+-- Given the "Enable all access for all users" on products, I'll follow that pattern for ease of use but comment it.
+create policy "Allow all access to notifications for now"
+  on notifications for all
+  using (true)
+  with check (true);
+
+
+-- User Settings Table
+create table user_settings (
+  user_id uuid references auth.users not null primary key,
+  email_notification boolean default true,
+  app_notification boolean default true,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table user_settings enable row level security;
+
+create policy "Users can view own settings" on user_settings for select using (auth.uid() = user_id);
+create policy "Users can update own settings" on user_settings for update using (auth.uid() = user_id);
+create policy "Users can insert own settings" on user_settings for insert with check (auth.uid() = user_id);

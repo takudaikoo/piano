@@ -4,6 +4,7 @@ import { CartProvider } from './CartContext';
 import { AuthProvider } from './AuthContext';
 import Home from './Home';
 import AdminDashboard from './AdminDashboard';
+import MyPage from './MyPage';
 import Login from './Login';
 import Signup from './Signup';
 import Checkout from './Checkout';
@@ -17,6 +18,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/mypage" element={<MyPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/checkout" element={<Checkout />} />
