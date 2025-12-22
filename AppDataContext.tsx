@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from './supabaseClient';
 import { Product, Notification } from './types';
-import { PRODUCTS as INITIAL_PRODUCTS } from './constants'; // Fallback / Seed source
 
 interface AppDataContextType {
     products: Product[];
@@ -44,14 +43,18 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
             if (data) setNotifications(data as Notification[]);
         } catch (err: any) {
             console.error('Error fetching notifications:', err);
+            // Don't rethrow, to prevent blocking products
         }
     };
 
     const fetchProducts = async () => {
+        console.log('fetchProducts started');
         setIsLoading(true);
         setError(null);
         try {
+            console.log('Fetching notifications...');
             await fetchNotifications(); // Fetch notifications too
+            console.log('Fetching products...');
             const { data, error } = await supabase
                 .from('products')
                 .select('*')
@@ -82,6 +85,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error fetching products:', err);
             setError(err.message);
         } finally {
+            console.log('fetchProducts finished');
             setIsLoading(false);
         }
     };

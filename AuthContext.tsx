@@ -30,6 +30,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
+        }).catch((err) => {
+            console.error('Auth session fetch error:', err);
+            setLoading(false);
         });
 
         // Listen for changes
