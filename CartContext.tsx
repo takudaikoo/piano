@@ -12,7 +12,7 @@ export interface CartItem {
 interface CartContextType {
     items: CartItem[];
     isOpen: boolean;
-    addToCart: (product: Product) => Promise<void>;
+    addToCart: (product: Product, openDrawer?: boolean) => Promise<void>;
     removeFromCart: (productId: string) => Promise<void>;
     updateQuantity: (productId: string, quantity: number) => Promise<void>;
     clearCart: () => void;
@@ -124,7 +124,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }, [items, user]);
 
 
-    const addToCart = async (product: Product) => {
+    const addToCart = async (product: Product, openDrawer = true) => {
         // Optimistic Update
         const newItems = [...items];
         const existingIdx = newItems.findIndex(i => i.product.id === product.id);
@@ -134,7 +134,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             newItems.push({ product, quantity: 1 });
         }
         setItems(newItems);
-        setIsOpen(true);
+        if (openDrawer) setIsOpen(true);
 
         if (user) {
             const qty = existingIdx >= 0 ? newItems[existingIdx].quantity : 1;

@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { CATEGORIES, REVIEWS } from './constants';
 import { Product, CategoryId } from './types';
 import { useAppData } from './AppDataContext';
@@ -18,14 +19,26 @@ const Icons = {
 
 // --- Components ---
 
-const Header = () => {
+const Header = ({ cartIconRef }: { cartIconRef: React.RefObject<HTMLButtonElement | null> }) => {
     const { totalItems, toggleCart } = useCart();
     const { user, signOut } = useAuth();
+    const [isAnimating, setIsAnimating] = useState(false);
+    const prevTotalItems = useRef(totalItems);
+
+    useEffect(() => {
+        if (totalItems > prevTotalItems.current) {
+            setIsAnimating(true);
+            const timer = setTimeout(() => setIsAnimating(false), 300);
+            return () => clearTimeout(timer);
+        }
+        prevTotalItems.current = totalItems;
+    }, [totalItems]);
+
     return (
         <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-stone-100 shadow-sm">
             <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
                 <h1 className="text-lg font-bold text-brand-900 tracking-tight">
-                    〇〇式幼児指導法<span className="text-brand-500 ml-1">公式教材</span>
+                    Pianao教室<span className="text-brand-500 ml-1">教材サイト</span>
                 </h1>
                 <div className="flex items-center gap-3">
                     {user ? (
@@ -41,8 +54,9 @@ const Header = () => {
                         </Link>
                     )}
                     <button
+                        ref={cartIconRef}
                         onClick={toggleCart}
-                        className="p-2 hover:bg-stone-100 rounded-full relative"
+                        className={`p-2 hover:bg-stone-100 rounded-full relative transition-transform ${isAnimating ? 'animate-pop text-brand-600' : ''}`}
                     >
                         <Icons.ShoppingCart />
                         {totalItems > 0 && (
@@ -118,8 +132,9 @@ const ProductCard: React.FC<{ product: Product, onClick: () => void }> = ({ prod
     </div>
 );
 
-const ProductDetail = ({ product, onBack, onAddToCart, onProductClick }: { product: Product, onBack: () => void, onAddToCart: () => void, onProductClick: (p: Product) => void }) => {
+const ProductDetail = ({ product, onBack, onAddToCart, onProductClick, cartIconRef }: { product: Product, onBack: () => void, onAddToCart: (e: React.MouseEvent<HTMLButtonElement>) => void, onProductClick: (p: Product) => void, cartIconRef: React.RefObject<HTMLButtonElement | null> }) => {
     const { products } = useAppData();
+    const { totalItems, toggleCart, isOpen } = useCart(); // Access cart state for badge
 
     // Cross-selling logic
     const relatedProducts = useMemo(() => {
@@ -143,7 +158,18 @@ const ProductDetail = ({ product, onBack, onAddToCart, onProductClick }: { produ
                     <span className="ml-1 text-sm font-bold">戻る</span>
                 </button>
                 <span className="font-bold text-stone-800 text-sm truncate max-w-[200px]">{product.title}</span>
-                <div className="w-6"></div> {/* Spacer */}
+                <button
+                    ref={cartIconRef}
+                    onClick={toggleCart}
+                    className="p-2 hover:bg-stone-100 rounded-full relative"
+                >
+                    <Icons.ShoppingCart />
+                    {totalItems > 0 && (
+                        <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full">
+                            {totalItems}
+                        </span>
+                    )}
+                </button>
             </div>
 
             <div className="max-w-3xl mx-auto">
@@ -285,7 +311,7 @@ const ProductDetail = ({ product, onBack, onAddToCart, onProductClick }: { produ
 
 const Home = () => {
     const { products, isLoading, error } = useAppData();
-    const { addToCart } = useCart();
+    const { addToCart, isOpen, toggleCart } = useCart();
     const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -293,6 +319,49 @@ const Home = () => {
         if (activeCategory === 'all') return products;
         return products.filter(p => p.category === activeCategory);
     }, [activeCategory, products]);
+
+    // Animation State
+    const [flyingItems, setFlyingItems] = useState<{ id: number, start: DOMRect, end: DOMRect, image: string }[]>([]);
+    const cartIconRef = useRef<HTMLButtonElement>(null);
+
+    const handleAddToCart = (product: Product, e: React.MouseEvent<HTMLButtonElement>) => {
+        // 1. Confetti
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = (rect.left + rect.width / 2) / window.innerWidth;
+        const y = (rect.top + rect.height / 2) / window.innerHeight;
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { x, y },
+            colors: ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#F7FFF7'],
+            zIndex: 100,
+        });
+
+        // 2. Flying Item
+        if (cartIconRef.current) {
+            const endRect = cartIconRef.current.getBoundingClientRect();
+            const newItem = {
+                id: Date.now(),
+                start: rect,
+                end: endRect,
+                image: product.image
+            };
+            setFlyingItems(prev => [...prev, newItem]);
+
+            // Remove after animation (slower)
+            setTimeout(() => {
+                setFlyingItems(prev => prev.filter(i => i.id !== newItem.id));
+            }, 1600);
+        }
+
+        // 3. Logic
+        addToCart(product, false); // Don't open drawer immediately
+
+        // Open drawer after animation
+        setTimeout(() => {
+            if (!isOpen) toggleCart();
+        }, 1500);
+    };
 
     const handleProductClick = (product: Product) => {
         setSelectedProduct(product);
@@ -312,10 +381,29 @@ const Home = () => {
                 <ProductDetail
                     product={selectedProduct}
                     onBack={handleBack}
-                    onAddToCart={() => addToCart(selectedProduct)}
+                    onAddToCart={(e) => handleAddToCart(selectedProduct, e)}
                     onProductClick={handleProductClick}
+                    cartIconRef={cartIconRef}
                 />
                 <CartDrawer />
+                {/* Flying Items Layer */}
+                {flyingItems.map((item) => (
+                    <img
+                        key={item.id}
+                        src={item.image}
+                        alt="flying"
+                        className="fixed z-[100] w-12 h-12 rounded-full border-2 border-white shadow-lg pointer-events-none object-cover transition-all duration-700 ease-in-out"
+                        style={{
+                            left: item.start.left,
+                            top: item.start.top,
+                            '--target-x': `${item.end.left - item.start.left + (item.end.width / 2 - 24)}px`,
+                            '--target-y': `${item.end.top - item.start.top + (item.end.height / 2 - 24)}px`,
+                            transform: 'translate(var(--target-x), var(--target-y)) scale(0.2)',
+                            opacity: 0,
+                            animation: 'fly 1.5s ease-in-out forwards'
+                        } as React.CSSProperties}
+                    />
+                ))}
             </>
         );
     }
@@ -323,7 +411,11 @@ const Home = () => {
     // View: Home
     return (
         <div className="bg-stone-50 min-h-screen pb-12">
-            <Header />
+            <Header cartIconRef={cartIconRef} />
+
+            {/* Flying Items Layer (Duplicate for Home view if needed, or lift state globally) */}
+            {/* Note: Currently AddToCart is only on Detail page. If we add it to list, need shared logic. */}
+
 
             {/* Hero Section */}
             <div className="bg-brand-50 border-b border-brand-100">
@@ -380,7 +472,7 @@ const Home = () => {
 
                 {/* Benefits Section */}
                 <div className="mt-16 bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-stone-100">
-                    <h3 className="text-center font-bold text-stone-800 text-xl mb-8">なぜ、〇〇式の教材は子供が喜ぶのか？</h3>
+                    <h3 className="text-center font-bold text-stone-800 text-xl mb-8">なぜ、Pianao教室の教材は子供が喜ぶのか？</h3>
                     <div className="grid sm:grid-cols-3 gap-6">
                         <div className="text-center">
                             <div className="w-12 h-12 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">🎓</div>
@@ -424,7 +516,7 @@ const Home = () => {
             </div>
 
             <footer className="bg-stone-800 text-stone-400 py-8 text-center text-xs">
-                <p>&copy; 2024 〇〇式幼児指導法 All Rights Reserved.</p>
+                <p>&copy; 2024 Pianao教室 All Rights Reserved.</p>
             </footer>
             <CartDrawer />
         </div>

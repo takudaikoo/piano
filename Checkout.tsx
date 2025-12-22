@@ -111,7 +111,26 @@ const Checkout = () => {
             // 3. Clear Cart
             clearCart();
 
-            // 4. Navigate to Success
+            // 4. Send Email Notification (Async, don't block success if it fails, but good to try)
+            try {
+                await supabase.functions.invoke('send-order-email', {
+                    body: {
+                        email: user.email,
+                        name: profile.full_name,
+                        items: items.map(i => ({
+                            title: i.product.title,
+                            quantity: i.quantity,
+                            price: i.product.price
+                        })),
+                        total: totalPrice
+                    }
+                });
+            } catch (emailErr) {
+                console.error('Failed to send email:', emailErr);
+                // Continue to success page even if email fails
+            }
+
+            // 5. Navigate to Success
             navigate('/order-success');
 
         } catch (err: any) {
