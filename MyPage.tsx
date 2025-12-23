@@ -25,6 +25,7 @@ const MyPage = () => {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
 
     // Form states
     const [password, setPassword] = useState('');
@@ -127,6 +128,7 @@ const MyPage = () => {
             } else {
                 alert('プロフィールを更新しました');
             }
+            setIsEditing(false);
         } catch (error: any) {
             console.error(error);
             alert('更新に失敗しました: ' + error.message);
@@ -242,45 +244,98 @@ const MyPage = () => {
                             )}
 
                             {/* Profile Edit */}
-                            <form onSubmit={handleProfileUpdate} className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
-                                <h3 className="bg-stone-50 px-4 py-2 text-xs font-bold text-stone-500 border-b border-stone-100">プロフィール設定</h3>
-                                <div className="p-6 space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-stone-500 mb-1">ニックネーム</label>
-                                        <input type="text" value={profile.nickname || ''} onChange={e => setProfile({ ...profile, nickname: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-stone-500 mb-1">お名前</label>
-                                            <input type="text" value={profile.full_name || ''} onChange={e => setProfile({ ...profile, full_name: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-stone-500 mb-1">電話番号</label>
-                                            <input type="tel" value={profile.phone_number || ''} onChange={e => setProfile({ ...profile, phone_number: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 border-t border-stone-100">
-                                        <p className="text-xs font-bold text-stone-500 mb-2">住所情報</p>
-                                        <div className="grid grid-cols-3 gap-2 mb-2">
-                                            <input type="text" placeholder="郵便番号" value={profile.postal_code || ''} onChange={e => setProfile({ ...profile, postal_code: e.target.value })} className="rounded border-stone-200 text-sm" />
-                                            <input type="text" placeholder="都道府県" value={profile.prefecture || ''} onChange={e => setProfile({ ...profile, prefecture: e.target.value })} className="rounded border-stone-200 text-sm" />
-                                            <input type="text" placeholder="市区町村" value={profile.city || ''} onChange={e => setProfile({ ...profile, city: e.target.value })} className="rounded border-stone-200 text-sm" />
-                                        </div>
-                                        <input type="text" placeholder="番地・建物名" value={profile.address_line1 || ''} onChange={e => setProfile({ ...profile, address_line1: e.target.value })} className="w-full rounded border-stone-200 text-sm mb-2" />
-                                    </div>
-
-                                    <div className="pt-2 border-t border-stone-100">
-                                        <p className="text-xs font-bold text-stone-500 mb-2">アカウント設定（変更時のみ入力）</p>
-                                        <label className="block text-xs font-bold text-stone-500 mb-1">新しいパスワード</label>
-                                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="変更する場合のみ入力" className="w-full rounded border-stone-200 text-sm" />
-                                    </div>
-
-                                    <button type="submit" disabled={saving} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg shadow-sm disabled:opacity-50">
-                                        {saving ? '保存中...' : '変更を保存する'}
-                                    </button>
+                            <div className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
+                                <div className="bg-stone-50 px-4 py-3 border-b border-stone-100 flex items-center justify-between">
+                                    <h3 className="text-xs font-bold text-stone-500">プロフィール設定</h3>
+                                    {!isEditing && (
+                                        <button
+                                            onClick={() => setIsEditing(true)}
+                                            className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 px-3 py-1 rounded transition-colors"
+                                        >
+                                            編集する
+                                        </button>
+                                    )}
                                 </div>
-                            </form>
+
+                                {isEditing ? (
+                                    <form onSubmit={handleProfileUpdate} className="p-6 space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-stone-500 mb-1">ニックネーム</label>
+                                            <input type="text" value={profile.nickname || ''} onChange={e => setProfile({ ...profile, nickname: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-stone-500 mb-1">お名前</label>
+                                                <input type="text" value={profile.full_name || ''} onChange={e => setProfile({ ...profile, full_name: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-stone-500 mb-1">電話番号</label>
+                                                <input type="tel" value={profile.phone_number || ''} onChange={e => setProfile({ ...profile, phone_number: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-stone-100">
+                                            <p className="text-xs font-bold text-stone-500 mb-2">住所情報</p>
+                                            <div className="grid grid-cols-3 gap-2 mb-2">
+                                                <input type="text" placeholder="郵便番号" value={profile.postal_code || ''} onChange={e => setProfile({ ...profile, postal_code: e.target.value })} className="rounded border-stone-200 text-sm" />
+                                                <input type="text" placeholder="都道府県" value={profile.prefecture || ''} onChange={e => setProfile({ ...profile, prefecture: e.target.value })} className="rounded border-stone-200 text-sm" />
+                                                <input type="text" placeholder="市区町村" value={profile.city || ''} onChange={e => setProfile({ ...profile, city: e.target.value })} className="rounded border-stone-200 text-sm" />
+                                            </div>
+                                            <input type="text" placeholder="番地・建物名" value={profile.address_line1 || ''} onChange={e => setProfile({ ...profile, address_line1: e.target.value })} className="w-full rounded border-stone-200 text-sm mb-2" />
+                                        </div>
+
+                                        <div className="pt-2 border-t border-stone-100">
+                                            <p className="text-xs font-bold text-stone-500 mb-2">アカウント設定（変更時のみ入力）</p>
+                                            <label className="block text-xs font-bold text-stone-500 mb-1">新しいパスワード</label>
+                                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="変更する場合のみ入力" className="w-full rounded border-stone-200 text-sm" />
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsEditing(false);
+                                                }}
+                                                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold py-3 rounded-lg transition-colors"
+                                            >
+                                                キャンセル
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={saving}
+                                                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg shadow-sm disabled:opacity-50"
+                                            >
+                                                {saving ? '保存中...' : '変更を保存する'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="p-6 space-y-6">
+                                        <div>
+                                            <p className="text-xs font-bold text-stone-400 mb-1">ニックネーム</p>
+                                            <p className="text-sm font-bold text-stone-800">{profile.nickname || '未設定'}</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-xs font-bold text-stone-400 mb-1">お名前</p>
+                                                <p className="text-sm font-bold text-stone-800">{profile.full_name || '未設定'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-stone-400 mb-1">電話番号</p>
+                                                <p className="text-sm font-bold text-stone-800">{profile.phone_number || '未設定'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="pt-4 border-t border-stone-100">
+                                            <p className="text-xs font-bold text-stone-400 mb-2">住所情報</p>
+                                            <p className="text-sm font-bold text-stone-800">
+                                                {profile.postal_code && `〒${profile.postal_code} `}
+                                                {profile.prefecture} {profile.city}
+                                            </p>
+                                            <p className="text-sm text-stone-600 mt-1">{profile.address_line1}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
