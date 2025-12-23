@@ -10,10 +10,10 @@ import Signup from './Signup';
 import Checkout from './Checkout';
 import OrderSuccess from './OrderSuccess';
 import ProfileSetup from './ProfileSetup';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,10 +51,18 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/mypage" element={<MyPage />} />
+            <Route path="/mypage" element={
+              <ProtectedRoute>
+                <MyPage />
+              </ProtectedRoute>
+            } />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout" element={
+              <ProtectedRoute>
+                <Checkout />
+              </ProtectedRoute>
+            } />
             <Route path="/order-success" element={<OrderSuccess />} />
             <Route path="/setup-profile" element={<ProfileSetup />} />
           </Routes>
