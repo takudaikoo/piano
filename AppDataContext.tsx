@@ -32,6 +32,10 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
+    useEffect(() => {
+        fetchProducts();
+    }, []);
+
     const fetchNotifications = async () => {
         try {
             const { data, error } = await supabase
