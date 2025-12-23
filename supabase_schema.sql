@@ -73,6 +73,7 @@ create table profiles (
   address_line1 text,
   address_line2 text,
   phone_number text,
+  nickname text,
   updated_at timestamp with time zone
 );
 

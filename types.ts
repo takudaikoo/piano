@@ -48,3 +48,16 @@ export interface UserSettings {
   app_notification: boolean;
   updated_at?: string;
 }
+
+export interface UserProfile {
+  id: string;
+  email: string; // from auth.users
+  nickname: string | null;
+  full_name?: string;
+  phone_number?: string;
+  postal_code?: string;
+  prefecture?: string;
+  city?: string;
+  address_line1?: string;
+  address_line2?: string;
+}
