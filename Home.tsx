@@ -515,12 +515,159 @@ const Home = () => {
                         ))}
                     </div>
                 </div>
+                {/* Newsletter Section */}
+                <NewsletterSection />
             </div>
 
             <footer className="bg-stone-800 text-stone-400 py-8 text-center text-xs">
                 <p>&copy; 2024 Pianao教室 All Rights Reserved.</p>
             </footer>
             <CartDrawer />
+        </div>
+    );
+};
+
+const NewsletterSection = () => {
+    const [email, setEmail] = useState('');
+    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [message, setMessage] = useState('');
+
+    const fireSuccess = () => {
+        const scalar = 3;
+        // @ts-ignore - shapeFromText might not be in the type definition yet
+        const eighthNote = confetti.shapeFromText({ text: '♪', scalar });
+        // @ts-ignore
+        const beamNote = confetti.shapeFromText({ text: '♫', scalar });
+
+        const duration = 1500;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+        const interval: any = setInterval(function () {
+            const timeLeft = animationEnd - Date.now();
+
+            if (timeLeft <= 0) {
+                return clearInterval(interval);
+            }
+
+            const particleCount = 20 * (timeLeft / duration);
+
+            confetti({
+                ...defaults,
+                particleCount,
+                origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+                shapes: [eighthNote, beamNote],
+                colors: ['#FF6B6B', '#4ECDC4', '#FFE66D'],
+                scalar
+            });
+            confetti({
+                ...defaults,
+                particleCount,
+                origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+                shapes: [eighthNote, beamNote],
+                colors: ['#FF6B6B', '#4ECDC4', '#FFE66D'],
+                scalar
+            });
+        }, 250);
+    };
+
+    const fireError = () => {
+        const scalar = 4;
+        // @ts-ignore
+        const rest = confetti.shapeFromText({ text: '𝄇', scalar }); // Quarter rest symbol
+
+        confetti({
+            particleCount: 15,
+            spread: 40,
+            origin: { y: 0.7 },
+            shapes: [rest],
+            colors: ['#555555'],
+            gravity: 0.8,
+            scalar,
+            startVelocity: 15,
+            ticks: 100
+        });
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Basic Email Validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+            setStatus('error');
+            setMessage('正しいメールアドレスを入力してください');
+            fireError();
+            return;
+        }
+
+        // Simulate API Call
+        setStatus('idle'); // Reset briefly or show loading
+
+        // Success
+        setStatus('success');
+        setMessage('登録ありがとうございます！最新情報をお届けします。');
+        setEmail('');
+        fireSuccess();
+
+        // Reset status after a few seconds
+        setTimeout(() => {
+            setStatus('idle');
+            setMessage('');
+        }, 5000);
+    };
+
+    return (
+        <div className="mt-16 bg-brand-900 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden">
+            {/* Background Decorations */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                <div className="absolute top-10 left-10 text-6xl text-white transform -rotate-12">♪</div>
+                <div className="absolute bottom-10 right-10 text-8xl text-white transform rotate-12">♫</div>
+                <div className="absolute top-1/2 left-1/4 w-32 h-32 bg-brand-500 rounded-full blur-3xl"></div>
+            </div>
+
+            <div className="relative z-10 max-w-xl mx-auto">
+                <h3 className="text-2xl font-bold text-white mb-4">
+                    新作教材のお知らせを受け取る
+                </h3>
+                <p className="text-brand-200 mb-8">
+                    新しい教材の追加や、会員限定のセール情報などをいち早くお届けします。<br />
+                    （登録解除はいつでも可能です）
+                </p>
+
+                <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+                    <input
+                        type="text" // Changed from email to allow free input for validation testing
+                        placeholder="メールアドレスを入力"
+                        className={`flex-1 px-6 py-4 rounded-full bg-white/10 border-2 text-white placeholder-brand-200/50 backdrop-blur-sm focus:outline-none transition-all ${status === 'error' ? 'border-red-400 focus:border-red-400' : 'border-transparent focus:border-brand-400 focus:bg-white/20'
+                            }`}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                    <button
+                        type="submit"
+                        className="px-8 py-4 rounded-full bg-white text-brand-900 font-bold hover:bg-brand-50 transition-colors shadow-lg flex items-center justify-center gap-2 group"
+                    >
+                        <span>登録する</span>
+                        <span className="group-hover:translate-x-1 transition-transform">→</span>
+                    </button>
+                </form>
+
+                {/* Status Messages */}
+                {status === 'error' && (
+                    <div className="mt-4 text-red-300 font-bold bg-red-900/30 py-2 px-4 rounded-lg inline-block animate-shake">
+                        ⚠ {message}
+                    </div>
+                )}
+                {status === 'success' && (
+                    <div className="mt-4 text-green-300 font-bold bg-green-900/30 py-2 px-4 rounded-lg inline-block animate-bounce-short">
+                        ✨ {message}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
