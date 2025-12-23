@@ -88,6 +88,8 @@ const MyPage = () => {
 
             } catch (err) {
                 console.error('Error fetching mypage data:', err);
+                alert('情報の取得に失敗しました。タイムアウトの可能性があるため、再度ログインしてください。');
+                signOut();
             } finally {
                 setLoading(false);
             }
