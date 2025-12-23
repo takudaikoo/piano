@@ -42,9 +42,44 @@ const MyPage = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch all data in parallel
-                const [ordersRes, settingsRes, profileRes] = await Promise.all([
-                    supabase.from('orders')
+                // 1. Profile (Critical)
+                const { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profileError && profileError.code !== 'PGRST116') throw profileError;
+
+                if (profileData) {
+                    setProfile({ ...profileData, email: user.email! });
+                } else {
+                    // Create default profile object if not found
+                    // @ts-ignore
+                    setProfile({ id: user.id, email: user.email!, nickname: '' });
+                }
+
+                // 2. Settings (Non-critical)
+                try {
+                    const { data: settingsData } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single();
+                    if (settingsData) {
+                        setSettings(settingsData);
+                    } else {
+                        const newSettings = { user_id: user.id, email_notification: true, app_notification: true };
+                        // Attempt to create defaults silently
+                        await supabase.from('user_settings').insert([newSettings]);
+                        setSettings(newSettings);
+                    }
+                } catch (settingsErr) {
+                    console.error('Error fetching settings:', settingsErr);
+                    // Fallback defaults
+                    setSettings({ user_id: user.id, email_notification: true, app_notification: true });
+                }
+
+                // 3. Orders (Non-critical, prone to relation errors)
+                try {
+                    const { data: ordersData, error: ordersError } = await supabase
+                        .from('orders')
                         .select(`
                             id, total_amount, status, created_at,
                             order_items (
@@ -57,38 +92,19 @@ const MyPage = () => {
                             )
                         `)
                         .eq('user_id', user.id)
-                        .order('created_at', { ascending: false }),
-                    supabase.from('user_settings').select('*').eq('user_id', user.id).single(),
-                    supabase.from('profiles').select('*').eq('id', user.id).single()
-                ]);
+                        .order('created_at', { ascending: false });
 
-                // 1. Orders
-                if (ordersRes.error) throw ordersRes.error;
-                setOrders(ordersRes.data || []);
-
-
-                // 2. Settings
-                if (settingsRes.data) {
-                    setSettings(settingsRes.data);
-                } else if (!settingsRes.error || settingsRes.error.code === 'PGRST116') {
-                    // Create defaults if missing
-                    const newSettings = { user_id: user.id, email_notification: true, app_notification: true };
-                    const { error } = await supabase.from('user_settings').insert([newSettings]);
-                    if (!error) setSettings(newSettings);
-                }
-
-                // 3. Profile
-                if (profileRes.data) {
-                    setProfile({ ...profileRes.data, email: user.email! });
-                } else if (!profileRes.error || profileRes.error.code === 'PGRST116') {
-                    const newProfile = { id: user.id, email: user.email!, nickname: '' };
-                    // @ts-ignore
-                    setProfile(newProfile);
+                    if (ordersError) throw ordersError;
+                    setOrders(ordersData || []);
+                } catch (ordersErr) {
+                    console.error('Error fetching orders:', ordersErr);
+                    // Don't crash, just show empty or handle UI later if needed
+                    setOrders([]);
                 }
 
             } catch (err) {
-                console.error('Error fetching mypage data:', err);
-                alert('情報の取得に失敗しました。タイムアウトの可能性があるため、再度ログインしてください。');
+                console.error('Critical error in mypage:', err);
+                alert('プロフィールの取得に失敗しました。再度ログインしてください。');
                 signOut();
             } finally {
                 setLoading(false);
