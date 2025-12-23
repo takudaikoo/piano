@@ -35,50 +35,38 @@ const MyPage = () => {
         if (!authLoading && !user) navigate('/login');
     }, [authLoading, user, navigate]);
 
-    // Fetch User Data
+    // Fetch User Data Optimized
     useEffect(() => {
         if (!user) return;
 
         const fetchData = async () => {
             setLoading(true);
             try {
-                // 1. Fetch Orders
-                const { data: ordersData, error: ordersError } = await supabase
-                    .from('orders')
-                    .select(`id, total_amount, status, created_at, order_items(quantity, product_id)`)
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false });
-                if (ordersError) throw ordersError;
-                setOrders(ordersData || []);
+                // Fetch all data in parallel
+                const [ordersRes, settingsRes, profileRes] = await Promise.all([
+                    supabase.from('orders').select(`id, total_amount, status, created_at, order_items(quantity, product_id)`).eq('user_id', user.id).order('created_at', { ascending: false }),
+                    supabase.from('user_settings').select('*').eq('user_id', user.id).single(),
+                    supabase.from('profiles').select('*').eq('id', user.id).single()
+                ]);
 
-                // 2. Fetch User Settings
-                const { data: settingsData, error: settingsError } = await supabase
-                    .from('user_settings')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .single();
+                // 1. Orders
+                if (ordersRes.error) throw ordersRes.error;
+                setOrders(ordersRes.data || []);
 
-                if (settingsData) {
-                    setSettings(settingsData);
-                } else if (!settingsError || settingsError.code === 'PGRST116') {
+                // 2. Settings
+                if (settingsRes.data) {
+                    setSettings(settingsRes.data);
+                } else if (!settingsRes.error || settingsRes.error.code === 'PGRST116') {
+                    // Create defaults if missing
                     const newSettings = { user_id: user.id, email_notification: true, app_notification: true };
                     const { error } = await supabase.from('user_settings').insert([newSettings]);
                     if (!error) setSettings(newSettings);
                 }
 
-                // 3. Fetch Profile
-                const { data: profileData, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profileError && profileError.code !== 'PGRST116') throw profileError;
-
-                if (profileData) {
-                    setProfile({ ...profileData, email: user.email! });
-                } else {
-                    // Create default profile if missing (should be created by Setup, but just in case)
+                // 3. Profile
+                if (profileRes.data) {
+                    setProfile({ ...profileRes.data, email: user.email! });
+                } else if (!profileRes.error || profileRes.error.code === 'PGRST116') {
                     const newProfile = { id: user.id, email: user.email!, nickname: '' };
                     // @ts-ignore
                     setProfile(newProfile);
@@ -119,7 +107,6 @@ const MyPage = () => {
             });
             if (error) throw error;
 
-            // Password update if provided
             if (password) {
                 const { error: pwError } = await supabase.auth.updateUser({ password: password });
                 if (pwError) throw pwError;
@@ -137,41 +124,46 @@ const MyPage = () => {
         }
     };
 
-    if (authLoading || loading) return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
+    if (authLoading || loading) return <div className="min-h-screen flex items-center justify-center font-bold text-stone-400">読み込み中...</div>;
     if (!user) return null;
 
     return (
         <div className="min-h-screen bg-stone-50 pb-20">
             {/* Header */}
-            <header className="bg-white border-b border-stone-200 sticky top-0 z-30 px-4 h-16 flex items-center justify-between shadow-sm">
-                <Link to="/" className="text-stone-500 hover:text-brand-600 font-bold text-sm flex items-center gap-1">← サイトに戻る</Link>
+            <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 sticky top-0 z-30 px-4 h-16 flex items-center justify-between shadow-sm">
+                <Link to="/" className="text-stone-500 hover:text-brand-600 font-bold text-sm flex items-center gap-1 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
+                    ホーム
+                </Link>
                 <h1 className="text-lg font-bold text-stone-800">マイページ</h1>
-                <button onClick={() => signOut()} className="text-stone-400 hover:text-stone-600 p-2"><Icons.LogOut /></button>
+                <button onClick={() => signOut()} className="text-stone-400 hover:text-red-500 p-2 transition-colors" title="ログアウト"><Icons.LogOut /></button>
             </header>
 
             <div className="max-w-2xl mx-auto px-4 py-8">
                 {/* User Profile Summary */}
-                <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 mb-8 flex items-center gap-4">
-                    <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 text-2xl font-bold">
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-8 flex items-center gap-5">
+                    <div className="w-20 h-20 bg-gradient-to-br from-brand-100 to-brand-50 rounded-full flex items-center justify-center text-brand-600 text-3xl font-bold shadow-inner">
                         {profile?.nickname ? profile.nickname.charAt(0) : user.email?.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <p className="text-xs text-stone-500 font-bold mb-1">ログイン中</p>
-                        <p className="text-stone-800 font-bold truncate">{profile?.nickname || '名無しさん'}</p>
-                        <p className="text-xs text-stone-400">{user.email}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="bg-brand-100 text-brand-700 text-[10px] font-bold px-2 py-0.5 rounded-full">MEMBER</span>
+                        </div>
+                        <p className="text-xl text-stone-800 font-bold">{profile?.nickname || 'ゲスト設定中'}</p>
+                        <p className="text-sm text-stone-400 font-medium">{user.email}</p>
                     </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex bg-stone-200 p-1 rounded-lg mb-8">
+                <div className="flex bg-stone-200/50 p-1.5 rounded-xl mb-8">
                     {['history', 'notifications', 'settings'].map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
-                            className={`flex-1 py-2 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === tab ? 'bg-white text-brand-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === tab ? 'bg-white text-brand-600 shadow-sm ring-1 ring-black/5' : 'text-stone-500 hover:text-stone-700'}`}
                         >
                             {tab === 'history' && <><Icons.Package /> 購入履歴</>}
-                            {tab === 'notifications' && <><Icons.Bell /> 通知 {notifications.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{notifications.length}</span>}</>}
+                            {tab === 'notifications' && <><Icons.Bell /> 通知 {notifications.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full">{notifications.length}</span>}</>}
                             {tab === 'settings' && <><Icons.Settings /> 設定</>}
                         </button>
                     ))}
@@ -182,21 +174,26 @@ const MyPage = () => {
                     {activeTab === 'history' && (
                         <div className="space-y-4">
                             {orders.length === 0 ? (
-                                <div className="text-center py-12 text-stone-400 bg-white rounded-xl border border-dashed border-stone-200">購入履歴はありません</div>
+                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border border-dashed border-stone-200">
+                                    <Icons.Package />
+                                    <p className="mt-2 font-bold text-sm">購入履歴はありません</p>
+                                </div>
                             ) : (
                                 orders.map(order => (
-                                    <div key={order.id} className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
-                                        <div className="flex justify-between items-start mb-3 border-b border-stone-100 pb-3">
+                                    <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5 hover:shadow-md transition-shadow">
+                                        <div className="flex justify-between items-start mb-4 border-b border-stone-50 pb-4">
                                             <div>
                                                 <p className="text-xs text-stone-400 font-bold mb-1">{new Date(order.created_at).toLocaleDateString()}</p>
-                                                <p className="text-sm font-bold text-stone-800">¥{order.total_amount.toLocaleString()}</p>
+                                                <p className="text-lg font-bold text-stone-800">¥{order.total_amount.toLocaleString()}</p>
                                             </div>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded ${order.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                {order.status === 'pending_payment' ? '未払い' : order.status === 'paid' ? '支払い済み' : order.status}
+                                            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${order.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                {order.status === 'pending_payment' ? '未払い' : order.status === 'paid' ? '完了' : order.status}
                                             </span>
                                         </div>
-                                        {/* Simplification for demo: just showing count */}
-                                        <p className="text-xs text-stone-500">{order.order_items.length}点の商品</p>
+                                        <div className="flex justify-between items-center text-sm text-stone-500">
+                                            <span>注文詳細</span>
+                                            <span className="font-bold">{order.order_items.length}点の商品</span>
+                                        </div>
                                     </div>
                                 ))
                             )}
@@ -207,13 +204,16 @@ const MyPage = () => {
                     {activeTab === 'notifications' && (
                         <div className="space-y-4">
                             {notifications.length === 0 ? (
-                                <div className="text-center py-12 text-stone-400 bg-white rounded-xl border border-dashed border-stone-200">お知らせはありません</div>
+                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border border-dashed border-stone-200">
+                                    <Icons.Bell />
+                                    <p className="mt-2 font-bold text-sm">お知らせはありません</p>
+                                </div>
                             ) : (
                                 notifications.map(note => (
-                                    <div key={note.id} className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
+                                    <div key={note.id} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5">
                                         <div className="flex justify-between items-start mb-2">
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${note.type === 'alert' ? 'bg-red-100 text-red-600' : note.type === 'new_arrival' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                {note.type === 'new_arrival' ? '新着' : note.type === 'alert' ? '重要' : 'お知らせ'}
+                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${note.type === 'alert' ? 'bg-red-100 text-red-600' : note.type === 'new_arrival' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {note.type === 'new_arrival' ? 'NEW' : note.type === 'alert' ? 'IMPORTANT' : 'INFO'}
                                             </span>
                                             <span className="text-xs text-stone-400">{new Date(note.created_at).toLocaleDateString()}</span>
                                         </div>
@@ -230,27 +230,37 @@ const MyPage = () => {
                         <div className="space-y-6">
                             {/* Notification Settings */}
                             {settings && (
-                                <section className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
-                                    <h3 className="bg-stone-50 px-4 py-2 text-xs font-bold text-stone-500 border-b border-stone-100">通知設定</h3>
-                                    <div className="p-4 border-b border-stone-100 flex items-center justify-between">
-                                        <div><p className="font-bold text-stone-800">メール通知</p><p className="text-xs text-stone-500">注文完了・新着情報</p></div>
-                                        <input type="checkbox" checked={settings.email_notification} onChange={(e) => handleNotificationChange('email_notification', e.target.checked)} className="accent-brand-600 w-5 h-5" />
+                                <section className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+                                    <div className="bg-stone-50/50 px-5 py-3 border-b border-stone-100">
+                                        <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider">通知設定</h3>
                                     </div>
-                                    <div className="p-4 flex items-center justify-between">
-                                        <div><p className="font-bold text-stone-800">アプリ内通知</p><p className="text-xs text-stone-500">マイページでのお知らせ</p></div>
-                                        <input type="checkbox" checked={settings.app_notification} onChange={(e) => handleNotificationChange('app_notification', e.target.checked)} className="accent-brand-600 w-5 h-5" />
+                                    <div className="divide-y divide-stone-50">
+                                        <div className="p-5 flex items-center justify-between hover:bg-stone-50/50 transition-colors">
+                                            <div><p className="font-bold text-stone-800 text-sm">メール通知</p><p className="text-xs text-stone-500 mt-0.5">注文完了・新着情報を受け取る</p></div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" checked={settings.email_notification} onChange={(e) => handleNotificationChange('email_notification', e.target.checked)} className="sr-only peer" />
+                                                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                                            </label>
+                                        </div>
+                                        <div className="p-5 flex items-center justify-between hover:bg-stone-50/50 transition-colors">
+                                            <div><p className="font-bold text-stone-800 text-sm">アプリ内通知</p><p className="text-xs text-stone-500 mt-0.5">マイページでの通知を表示</p></div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" checked={settings.app_notification} onChange={(e) => handleNotificationChange('app_notification', e.target.checked)} className="sr-only peer" />
+                                                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </section>
                             )}
 
                             {/* Profile Edit */}
-                            <div className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
-                                <div className="bg-stone-50 px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-                                    <h3 className="text-xs font-bold text-stone-500">プロフィール設定</h3>
+                            <div className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+                                <div className="bg-stone-50/50 px-5 py-3 border-b border-stone-100 flex items-center justify-between">
+                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider">プロフィール情報</h3>
                                     {!isEditing && (
                                         <button
                                             onClick={() => setIsEditing(true)}
-                                            className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 px-3 py-1 rounded transition-colors"
+                                            className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 px-3 py-1.5 rounded-lg transition-colors"
                                         >
                                             編集する
                                         </button>
@@ -258,52 +268,80 @@ const MyPage = () => {
                                 </div>
 
                                 {isEditing ? (
-                                    <form onSubmit={handleProfileUpdate} className="p-6 space-y-4">
+                                    <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
                                         <div>
-                                            <label className="block text-xs font-bold text-stone-500 mb-1">ニックネーム</label>
-                                            <input type="text" value={profile.nickname || ''} onChange={e => setProfile({ ...profile, nickname: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                            <label className="block text-xs font-bold text-stone-500 mb-1.5 ml-1">ニックネーム</label>
+                                            <input
+                                                type="text"
+                                                value={profile.nickname || ''}
+                                                onChange={e => setProfile({ ...profile, nickname: e.target.value })}
+                                                className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-bold text-stone-700 placeholder:font-normal placeholder:text-stone-300 text-sm"
+                                                placeholder="表示名を入力"
+                                            />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-bold text-stone-500 mb-1">お名前</label>
-                                                <input type="text" value={profile.full_name || ''} onChange={e => setProfile({ ...profile, full_name: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                                <label className="block text-xs font-bold text-stone-500 mb-1.5 ml-1">お名前</label>
+                                                <input
+                                                    type="text"
+                                                    value={profile.full_name || ''}
+                                                    onChange={e => setProfile({ ...profile, full_name: e.target.value })}
+                                                    className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-bold text-stone-700 placeholder:font-normal placeholder:text-stone-300 text-sm"
+                                                    placeholder="本名"
+                                                />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-stone-500 mb-1">電話番号</label>
-                                                <input type="tel" value={profile.phone_number || ''} onChange={e => setProfile({ ...profile, phone_number: e.target.value })} className="w-full rounded border-stone-200 text-sm" />
+                                                <label className="block text-xs font-bold text-stone-500 mb-1.5 ml-1">電話番号</label>
+                                                <input
+                                                    type="tel"
+                                                    value={profile.phone_number || ''}
+                                                    onChange={e => setProfile({ ...profile, phone_number: e.target.value })}
+                                                    className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-bold text-stone-700 placeholder:font-normal placeholder:text-stone-300 text-sm"
+                                                    placeholder="090-0000-0000"
+                                                />
                                             </div>
                                         </div>
 
                                         <div className="pt-2 border-t border-stone-100">
-                                            <p className="text-xs font-bold text-stone-500 mb-2">住所情報</p>
-                                            <div className="grid grid-cols-3 gap-2 mb-2">
-                                                <input type="text" placeholder="郵便番号" value={profile.postal_code || ''} onChange={e => setProfile({ ...profile, postal_code: e.target.value })} className="rounded border-stone-200 text-sm" />
-                                                <input type="text" placeholder="都道府県" value={profile.prefecture || ''} onChange={e => setProfile({ ...profile, prefecture: e.target.value })} className="rounded border-stone-200 text-sm" />
-                                                <input type="text" placeholder="市区町村" value={profile.city || ''} onChange={e => setProfile({ ...profile, city: e.target.value })} className="rounded border-stone-200 text-sm" />
+                                            <p className="text-xs font-bold text-stone-500 mb-3 ml-1">お届け先住所</p>
+                                            <div className="grid grid-cols-3 gap-3 mb-3">
+                                                <input type="text" placeholder="郵便番号" value={profile.postal_code || ''} onChange={e => setProfile({ ...profile, postal_code: e.target.value })} className="px-3 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all text-sm font-bold" />
+                                                <input type="text" placeholder="都道府県" value={profile.prefecture || ''} onChange={e => setProfile({ ...profile, prefecture: e.target.value })} className="px-3 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all text-sm font-bold" />
+                                                <input type="text" placeholder="市区町村" value={profile.city || ''} onChange={e => setProfile({ ...profile, city: e.target.value })} className="px-3 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all text-sm font-bold" />
                                             </div>
-                                            <input type="text" placeholder="番地・建物名" value={profile.address_line1 || ''} onChange={e => setProfile({ ...profile, address_line1: e.target.value })} className="w-full rounded border-stone-200 text-sm mb-2" />
+                                            <input
+                                                type="text"
+                                                placeholder="番地・建物名・部屋番号"
+                                                value={profile.address_line1 || ''}
+                                                onChange={e => setProfile({ ...profile, address_line1: e.target.value })}
+                                                className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-bold text-stone-700 placeholder:font-normal placeholder:text-stone-300 text-sm"
+                                            />
                                         </div>
 
                                         <div className="pt-2 border-t border-stone-100">
-                                            <p className="text-xs font-bold text-stone-500 mb-2">アカウント設定（変更時のみ入力）</p>
-                                            <label className="block text-xs font-bold text-stone-500 mb-1">新しいパスワード</label>
-                                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="変更する場合のみ入力" className="w-full rounded border-stone-200 text-sm" />
+                                            <p className="text-xs font-bold text-stone-500 mb-3 ml-1">セキュリティ設定</p>
+                                            <label className="block text-xs font-bold text-stone-400 mb-1.5 ml-1">新しいパスワード（変更する場合のみ）</label>
+                                            <input
+                                                type="password"
+                                                value={password}
+                                                onChange={e => setPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-bold text-stone-700 placeholder:font-normal placeholder:text-stone-300 text-sm"
+                                            />
                                         </div>
 
-                                        <div className="flex gap-3 pt-2">
+                                        <div className="flex gap-3 pt-4">
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setIsEditing(false);
-                                                }}
-                                                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold py-3 rounded-lg transition-colors"
+                                                onClick={() => { setIsEditing(false); }}
+                                                className="flex-1 bg-white hover:bg-stone-50 text-stone-500 font-bold py-3.5 rounded-xl border border-stone-200 transition-colors text-sm"
                                             >
                                                 キャンセル
                                             </button>
                                             <button
                                                 type="submit"
                                                 disabled={saving}
-                                                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg shadow-sm disabled:opacity-50"
+                                                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:shadow-none transition-all text-sm"
                                             >
                                                 {saving ? '保存中...' : '変更を保存する'}
                                             </button>
@@ -311,27 +349,23 @@ const MyPage = () => {
                                     </form>
                                 ) : (
                                     <div className="p-6 space-y-6">
-                                        <div>
-                                            <p className="text-xs font-bold text-stone-400 mb-1">ニックネーム</p>
-                                            <p className="text-sm font-bold text-stone-800">{profile.nickname || '未設定'}</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <p className="text-xs font-bold text-stone-400 mb-1">ニックネーム</p>
+                                                <p className="text-sm font-bold text-stone-800">{profile.nickname || '未設定'}</p>
+                                            </div>
                                             <div>
                                                 <p className="text-xs font-bold text-stone-400 mb-1">お名前</p>
                                                 <p className="text-sm font-bold text-stone-800">{profile.full_name || '未設定'}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-stone-400 mb-1">電話番号</p>
-                                                <p className="text-sm font-bold text-stone-800">{profile.phone_number || '未設定'}</p>
-                                            </div>
                                         </div>
-                                        <div className="pt-4 border-t border-stone-100">
-                                            <p className="text-xs font-bold text-stone-400 mb-2">住所情報</p>
+                                        <div>
+                                            <p className="text-xs font-bold text-stone-400 mb-1">お届け先</p>
                                             <p className="text-sm font-bold text-stone-800">
                                                 {profile.postal_code && `〒${profile.postal_code} `}
                                                 {profile.prefecture} {profile.city}
                                             </p>
-                                            <p className="text-sm text-stone-600 mt-1">{profile.address_line1}</p>
+                                            <p className="text-sm text-stone-600 mt-0.5">{profile.address_line1 || '住所未設定'}</p>
                                         </div>
                                     </div>
                                 )}
@@ -342,6 +376,7 @@ const MyPage = () => {
             </div>
         </div>
     );
+};
 };
 
 export default MyPage;
